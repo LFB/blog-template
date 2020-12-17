@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="description"
+        content="梁凤波的个人博客"/>
+  <meta name="Keywords" content="博客,前端,后端,javascript,css,html,boblog,梁凤波,波波"/>
+  <title>波波博客 - www.boblog.com</title>
+  <link rel="stylesheet" href="./css/article.css">
+</head>
+<body>
+<!--    头部-->
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <a href="./index.html" class="logo-link">
+        <img src="./image/boblog.png" alt="boblog.com">
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <!--    文章-->
+  <div class="article">
+    <h1 class="article-title">
+      学习 webpack 热更新原理
+    </h1>
+    <div class="article-info">
+      <span>梁凤波</span>
+      <span>2020-12-16</span>
+    </div>
+    <div class="article-content">
+      问题：
+      1. 热更新是保存后自动编译（Auto Compile）吗？
+      2. 还是自动刷新浏览器（Live Reload）？
+      3. 还是指 HMR（Hot Module Replacement，模块热替换）？
+      4. 这些不同的效果背后的技术原理是什么呢？
+      1、手动执行打包
+      从最简单的说起，执行打包命令后，退出进程，如果修改了文件后，还是需要重新执行打包，手动刷新页面。
+      2、--watch 模式打包
+      这时候可以使用 webpack的 --watch 命令进行配置，当执行打包命令结束后未退出当前进程，而是继续监控源文件内容是否发生变化，如果发生变化，则会查询执行打包流程。但是，在浏览器页面上还是需要手动刷新才能看到最新的修改内容
+      3、Live Reload
+      为了使每次代码变更后浏览器中的预览页面能自动显示最新效果而无须手动点击刷新，我们需要一种通信机制来连接浏览器中的预览页面与本地监控代码变更的进程。在webpack 提供了 webpack-dev-server 服务器实现了这个机制，配置：
+      "dev": "webpack-dev-server --config webpack.config.js"
+      主要的原理就是 websocket 通信，打开浏览器后，会看到network还加载了路径前缀名为 /sockjs-node 的 websocket 链接，通过这个 websocket 链接，就可以使打开的网页和本地服务间建立持久化的通信。当源代码发生变更时，我们就可以通过 Socket 通知到网页端，网页端在接到通知后会自动触发页面刷新。
+      Live Reload 存在的问题就是，在开发调试过程中，修改了文件内容，浏览器会重新刷新网页，导致某一些表单填写的数据或其他操作需要重新手动操作一次，需要解决这个问题就是引入 HMR（Hot Module Replacement）模块热更新，这个插件就是为了解决页面刷新导致状态丢失的问题。配置如下：
+      // webpack.config.js
+      const webpack = require('webpack')
+      module.exports = {
+      // ...
+      devServer: {
+      // ...
+      hot: true
+      },
+      plugins: [
+      // ...
+      new webpack.HotModuleReplacementPlugin()
+      ]
+      }
+      同时需要配置热更新的模块：
+      // src/index.js
+      import './index.scss'
+      import render from './render'
+      render()
+      配置后启动服务后，重新修改文件就发现控制台触发多了2个文件：
+      尽管网络端同样新增了 hot-update.json 和 hot-update.js，但紧随其后的是如上一个示例一般的刷新了整个页面。那么，为什么导入的 CSS 能触发模块热替换，而 JS 文件的内容修改就失效了呢？要回答这个问题，我们还得从 webpack 的热更新原理说起。
+      webpack 中的热更新原理：
+      1. watch 对本地源码文件内容变更监控
+      2. Live reload 使得浏览器网页端与本地服务器进行 webstock 通信
+      3. HMR 提供的模板解析与替换功能
+      webpack 中的打包流程：
+      webpack 中的术语：
+      1. module：指在模块化编程中我们把应用程序分割成的独立功能的代码模块。
+      2. chunk：指模块间按照引用关系组合成的代码块，一个 chunk 中可以包含多个 module。
+      3. chunk group：指通过配置入口点（entry point）区分的块组，一个 chunk group 中可包含一到多个 chunk。
+      4. bundling：webpack 打包的过程。
+      5. asset/bundle：打包产物。
+      webpack 的打包思想可以简化为 3 点：
+      1. 一切源代码文件均可通过各种 Loader 转换为 JS 模块 （module），模块之间可以互相引用。
+      2. webpack 通过入口点（entry point）递归处理各模块引用关系，最后输出为一个或多个产物包 js(bundle) 文件。
+      3. 每一个入口点都是一个块组（chunk group），在不考虑分包的情况下，一个 chunk group 中只有一个 chunk，该 chunk 包含递归分析后的所有模块。每一个 chunk 都有对应的一个打包后的输出文件（asset/bundle）。
+      // 配置热更新
+      if (module.hot) {
+      module.hot.accept('./index.scss', () => {
+      console.log('Update...')
+      })
+      module.hot.accept('./render', () => {
+      render()
+      })
+      }
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="author">
+      <div class="author-name">梁凤波</div>
+      <div class="author-desc">
+        @GitHub
+      </div>
+    </div>
+    <div class="recommend">
+      <div class="recommend-header">
+        推荐文章
+      </div>
+      <ul class="recommend-list">
+        <li class="recommend-item">
+          <a href="#" class="recommend-item-link">
+            <h2 class="recommend-item-title">
+              学习 webpack 热更新原理
+            </h2>
+            <div class="recommend-item-info">
+              <span class="recommend-item-author">
+                梁凤波
+              </span>
+              <span class="recommend-item-time">
+                2020-12-16
+              </span>
+            </div>
+          </a>
+        </li>
+        <li class="recommend-item">
+          <a href="#" class="recommend-item-link">
+            <h2 class="recommend-item-title">
+              学习 webpack 热更新原理
+            </h2>
+            <div class="recommend-item-info">
+              <span class="recommend-item-author">
+                梁凤波
+              </span>
+              <span class="recommend-item-time">
+                2020-12-16
+              </span>
+            </div>
+          </a>
+        </li>
+        <li class="recommend-item">
+          <a href="#" class="recommend-item-link">
+            <h2 class="recommend-item-title">
+              学习 webpack 热更新原理
+            </h2>
+            <div class="recommend-item-info">
+              <span class="recommend-item-author">
+                梁凤波
+              </span>
+              <span class="recommend-item-time">
+                2020-12-16
+              </span>
+            </div>
+          </a>
+        </li>
+        <li class="recommend-item">
+          <a href="#" class="recommend-item-link">
+            <h2 class="recommend-item-title">
+              学习 webpack 热更新原理
+            </h2>
+            <div class="recommend-item-info">
+              <span class="recommend-item-author">
+                梁凤波
+              </span>
+              <span class="recommend-item-time">
+                2020-12-16
+              </span>
+            </div>
+          </a>
+        </li>
+        <li class="recommend-item">
+          <a href="#" class="recommend-item-link">
+            <h2 class="recommend-item-title">
+              学习 webpack 热更新原理
+            </h2>
+            <div class="recommend-item-info">
+              <span class="recommend-item-author">
+                梁凤波
+              </span>
+              <span class="recommend-item-time">
+                2020-12-16
+              </span>
+            </div>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="copy">
+    &copy;梁凤波 - www.boblog.com
+  </div>
+  <div class="id-card">
+    <a href="https://beian.miit.gov.cn/#/Integrated/index" target="_blank">
+      粤ICP备2020120493号-1
+    </a>
+  </div>
+</footer>
+</body>
+</html>
